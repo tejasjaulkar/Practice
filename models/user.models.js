@@ -18,7 +18,14 @@ const userSchema = new mongoose.Schema({
         required:true,
         min:[6,"minmum 6 length of passwoed requires !"]
     },
-
+    avatar: {
+        type: String, // cloudinary url
+        required: true,
+    },
+    refreshToken:
+    {
+        type:String
+    },
 },
 {
     timestamps:true
