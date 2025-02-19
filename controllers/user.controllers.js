@@ -4,6 +4,7 @@ import User from "../models/user.models.js";
 import {UploadOnCloudinary} from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/Apiresponse.js";
 import jwt from 'jsonwebtoken'
+// import {isCorrectPassword} from '../models/user.models.js'
 // import { verifyJwt } from "../middlewares/verifyJWT.miidleware.js";
 
 
@@ -214,25 +215,31 @@ const refreshAccessToken = asyncHandler(async (req,res) => {
     //match it with user.refreshtoken and currentrefresh_token
 
     try {
-        currentRefreshToken = req.cookie?.refreshToken || req.body.refreshToken
+        const currentRefreshToken = req.cookies?.refreshToken || req.body.refreshToken
     
         if(!currentRefreshToken)
         {
-            throw new ApiError(401,"Unauthorized req")
+            throw new ApiError(401,"Unauthorized request: No refresh token provided")
         }
     
-        decodedRefreshToken = jwt.verify(currentRefreshToken,REFRESH_TOKEN_SECRET)
+        const decodedRefreshToken = jwt.verify(currentRefreshToken,process.env.REFRESH_TOKEN_SECRET)
     
         if(!decodedRefreshToken)
         {
-            throw new ApiError(401,"Unauthorized req")
+            throw new ApiError(401,"Unauthorized req : decodedRefreshToken not found ")
         }
     
         const user = await User.findById(decodedRefreshToken._id)
-    
-        if(user.refreshToken !== decodedRefreshToken)
+
+        if(!user)
         {
-            throw new ApiError(401,"Unauthorized req")        
+            throw new ApiError(401, "Unauthorized request: user not found");
+
+        }
+    
+        if(user.refreshToken !== currentRefreshToken)
+        {
+            throw new ApiError(401, "Unauthorized request: Token mismatch");
         }
     
         const { accessToken , refreshToken} = generateAccesssAndRefreshTokens(user._id)
@@ -245,8 +252,8 @@ const refreshAccessToken = asyncHandler(async (req,res) => {
             new ApiResponse(
                 203,
                 {
-                    accessToken,refreshToken
-                },
+                    "accessToken": accessToken,
+                     "refreshToken": refreshToken                },
                 {
                     message : "user logged in using refrehToken"
                 }
@@ -260,4 +267,47 @@ const refreshAccessToken = asyncHandler(async (req,res) => {
     }
 })
 
-export {registerUser,loginUser,logoutUser,refreshAccessToken}
+const modifyPass = asyncHandler(async(req,res)=>{
+
+    const {username ,oldpassword,newpassword} = req.body;
+
+    const user = await User.findOne({username})
+    // console.log(req.body)
+    console.log(user)
+    if(!user)
+    {
+        throw new ApiError(400,"unauthorized user : found while changing password")
+    }
+    const flagforpassword = await user.isCorrectPassword(oldpassword)
+
+    // console.log(oldpassword)
+    if(!flagforpassword)
+    {
+        throw new ApiError(400,"old password is not matching")
+    }
+
+    user.password = newpassword;
+    user.save({validateBeforeSave:false})
+
+
+    console.log("after saving",user)
+    res.status(200)
+    .json(
+
+        new ApiResponse(
+            200,
+            {
+
+            },
+            {
+                message:"password changed successfully"
+            }
+        )
+    )
+
+
+
+})
+
+
+export {registerUser,loginUser,logoutUser,refreshAccessToken,modifyPass}
